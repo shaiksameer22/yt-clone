@@ -10,7 +10,6 @@ const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const UPLOAD_PASSWORD = process.env.UPLOAD_PASSWORD || 'secretpassword';
 
 // Track active FFmpeg processes so we can kill them cleanly on Ctrl+C
 const activeFfmpegJobs = new Map();
@@ -50,12 +49,7 @@ app.get('/api/videos/:id', (req, res) => {
 app.use('/uploads', express.static(uploadsHlsDir));
 
 app.post('/api/upload', upload.single('video'), (req, res) => {
-    const { title, password } = req.body;
-
-    if (password !== UPLOAD_PASSWORD) {
-        if (req.file) fs.unlinkSync(req.file.path);
-        return res.status(401).json({ error: 'Unauthorized: Invalid password' });
-    }
+    const { title } = req.body;
 
     if (!req.file || !title) {
         if (req.file) fs.unlinkSync(req.file.path);

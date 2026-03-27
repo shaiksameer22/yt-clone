@@ -4,7 +4,6 @@ import { UploadCloud, X } from 'lucide-react';
 
 export default function UploadModal({ onClose }) {
   const [title, setTitle] = useState('');
-  const [password, setPassword] = useState('');
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -12,7 +11,7 @@ export default function UploadModal({ onClose }) {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!title || !password || !file) {
+    if (!title || !file) {
       setError('Please fill all fields');
       return;
     }
@@ -22,7 +21,6 @@ export default function UploadModal({ onClose }) {
 
     const formData = new FormData();
     formData.append('title', title);
-    formData.append('password', password);
     formData.append('video', file);
 
     try {
@@ -56,10 +54,6 @@ export default function UploadModal({ onClose }) {
              <label>Video Title</label>
              <input type="text" placeholder="E.g., My Awesome Vlog" value={title} onChange={e => setTitle(e.target.value)} disabled={loading} />
           </div>
-          <div className="input-group">
-             <label>Access Password</label>
-             <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} />
-          </div>
           
           <div className="file-drop-area">
              <input type="file" accept="video/*" onChange={e => setFile(e.target.files[0])} disabled={loading} id="file-upload"/>
@@ -78,7 +72,7 @@ export default function UploadModal({ onClose }) {
              </div>
           )}
           
-          <button type="submit" className="submit-btn primary-btn" disabled={loading || !file || !title || !password}>
+          <button type="submit" className="submit-btn primary-btn" disabled={loading || !file || !title}>
             {loading ? 'Uploading...' : 'Start Upload'}
           </button>
         </form>
