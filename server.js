@@ -12,6 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const UPLOAD_PASSWORD = process.env.UPLOAD_PASSWORD || 'secretpassword';
 
+// Track active FFmpeg processes so we can kill them cleanly on Ctrl+C
+const activeFfmpegJobs = new Map();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -74,7 +77,7 @@ app.post('/api/upload', upload.single('video'), (req, res) => {
 
         // Start FFmpeg HLS Transcoding for Quality Switching
         // Creating two qualities for demonstration: 360p and 720p
-        ffmpeg(tempPath)
+        const command = ffmpeg(tempPath)
             .outputOptions([
                 '-map 0:v:0', '-map 0:a:0',
                 '-map 0:v:0', '-map 0:a:0',
@@ -92,13 +95,17 @@ app.post('/api/upload', upload.single('video'), (req, res) => {
             .on('end', () => {
                 db.run(`UPDATE videos SET status = 'ready' WHERE id = ?`, [videoId]);
                 fs.unlinkSync(tempPath);
+                activeFfmpegJobs.delete(videoId);
             })
             .on('error', (err) => {
                 console.error('FFmpeg HLS Error:', err);
                 db.run(`UPDATE videos SET status = 'error' WHERE id = ?`, [videoId]);
                 try { fs.unlinkSync(tempPath); } catch (e) {}
-            })
-            .run();
+                activeFfmpegJobs.delete(videoId);
+            });
+            
+        activeFfmpegJobs.set(videoId, command);
+        command.run();
     });
 });
 
@@ -108,6 +115,33 @@ app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`YouTube clone running on port ${PORT}`);
 });
+
+// Graceful shutdown handler for Ctrl+C
+function gracefulShutdown() {
+    console.log('\nReceived Ctrl+C (SIGINT). Shutting down securely...');
+    
+    // Terminate any background FFmpeg processing safely
+    if (activeFfmpegJobs.size > 0) {
+        console.log(`Killing ${activeFfmpegJobs.size} active background FFmpeg process(es)...`);
+        for (const [id, cmd] of activeFfmpegJobs.entries()) {
+             cmd.kill('SIGKILL');
+             console.log(`- Stopped video compiling for ID: ${id}`);
+        }
+    }
+
+    server.close(() => {
+        db.close(() => {
+           console.log('Database safely locked. Goodbye!');
+           process.exit(0);
+        });
+    });
+
+    // Force exit backup
+    setTimeout(() => process.exit(1), 3000);
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
